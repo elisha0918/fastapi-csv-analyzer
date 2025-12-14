@@ -13,8 +13,6 @@ import re
 app = Flask(__name__)
 
 # 設定圖表樣式
-# 'Arial Unicode MS' 用於顯示中文
-# 注意：在 Zeabur/Docker 環境中需要確保系統安裝了中文字體，否則可能無法正確顯示中文
 sns.set_style("whitegrid")
 plt.rcParams['font.sans-serif'] = ['Arial Unicode MS', 'DejaVu Sans']
 plt.rcParams['axes.unicode_minus'] = False
@@ -52,7 +50,6 @@ def clean_currency(amount):
 def analyze_data():
     """
     接收 POST 請求，處理 CSV 檔案，進行信用卡消費分析，並回傳結果與圖表。
-    假設 n8n 傳遞的檔案參數名為 'csv_file'。
     """
     # 1. 檢查檔案上傳
     if 'csv_file' not in request.files:
@@ -65,25 +62,23 @@ def analyze_data():
 
     if file and file.filename.endswith('.csv'):
         try:
-            # 2. 讀取檔案內容
-            # 檔案有 3 行標頭資訊，所以從第 4 行 (header=3) 開始讀取資料
+            # 2. 讀取檔案內容 (header=3 表示從第 4 行讀取標頭)
             csv_data = file.stream.read().decode('utf-8')
             df = pd.read_csv(io.StringIO(csv_data), header=3)
             
-            # 3. 數據清理與準備 (修正欄位名稱以符合您的 CSV 檔案)
-            # 您的 CSV 檔案提供的欄位是：'消費日', '摘要', '入帳起息日'
-            required_cols = ['消費日', '摘要', '入帳起息日']  # <--- 修正處 1: 更改為 '入帳起息日'
+            # 3. 數據清理與準備 (使用您的 CSV 檔案中的正確欄位名稱)
+            # 根據您的 CSV 截圖，必要的欄位是：'消費日', '摘要', '新臺幣金額'
+            required_cols = ['消費日', '摘要', '新臺幣金額']  # <--- 最終確認的欄位名稱
             if not all(col in df.columns for col in required_cols):
                  return jsonify({'error': f'CSV 檔案缺少必要欄位：{required_cols}'}), 400
 
             # 轉換日期
             df['消費日'] = pd.to_datetime(df['消費日'], errors='coerce')
             
-            # 處理金額欄位，移除逗號和引號
-            # 使用您的 CSV 檔案中的 '入帳起息日' 欄位作為金額來源
-            df['金額'] = df['入帳起息日'].apply(clean_currency) # <--- 修正處 2: 更改為 '入帳起息日'
+            # 處理金額欄位，使用正確的 '新臺幣金額' 欄位
+            df['金額'] = df['新臺幣金額'].apply(clean_currency) # <--- 最終確認的金額欄位
 
-            # 過濾掉金額為負數的項目 (通常是退款或扣繳，如「國泰銀扣繳」 )
+            # 過濾掉金額為負數的項目 
             df = df[df['金額'] > 0]  
             
             # 4. 進行分類與分析
@@ -92,7 +87,7 @@ def analyze_data():
             # 計算各分類的總支出
             spending_by_category = df.groupby('分類')['金額'].sum().sort_values(ascending=False)
             
-            # 5. 生成圖表：長條圖 (Top Spending Categories)
+            # 5. 生成圖表
             plt.figure(figsize=(10, 6))
             sns.barplot(x=spending_by_category.index, y=spending_by_category.values)
             plt.title('消費分類總支出 (Top Categories)')
@@ -104,7 +99,7 @@ def analyze_data():
             # 6. 將圖表編碼為 Base64 字串
             buffer = io.BytesIO()
             plt.savefig(buffer, format='png')
-            plt.close() # 關閉圖表以釋放記憶體
+            plt.close()
             img_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
             buffer.close()
             
@@ -128,5 +123,4 @@ def analyze_data():
 
 # 這是 Flask 應用程式的啟動點
 if __name__ == '__main__':
-    # 這是本機測試用的，Gunicorn 在 Zeabur 上會使用 Dockerfile/Procfile 中的配置
     app.run(host='0.0.0.0', port=8000)
