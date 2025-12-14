@@ -1,0 +1,5 @@
+{
+  "build_command": "pip install -r requirements.txt",
+  "start_command": "gunicorn --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 300 app:app",
+  "install_cmd": "pip3 install -r requirements.txt"
+}
