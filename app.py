@@ -14,6 +14,7 @@ app = Flask(__name__)
 
 # 設定圖表樣式
 # 'Arial Unicode MS' 用於顯示中文
+# 注意：在 Zeabur/Docker 環境中需要確保系統安裝了中文字體，否則可能無法正確顯示中文
 sns.set_style("whitegrid")
 plt.rcParams['font.sans-serif'] = ['Arial Unicode MS', 'DejaVu Sans']
 plt.rcParams['axes.unicode_minus'] = False
@@ -67,11 +68,11 @@ def analyze_data():
             # 2. 讀取檔案內容
             # 檔案有 3 行標頭資訊，所以從第 4 行 (header=3) 開始讀取資料
             csv_data = file.stream.read().decode('utf-8')
-            df = pd.read_csv(io.StringIO(csv_data), header=3) [cite: 1]
+            df = pd.read_csv(io.StringIO(csv_data), header=3)
             
-            # 3. 數據清理與準備 (使用您的 CSV 欄位名稱)
-            # 根據您的檔案 ，必要的欄位是：'消費日', '摘要', '新臺幣金額'
-            required_cols = ['消費日', '摘要', '新臺幣金額'] 
+            # 3. 數據清理與準備 (修正欄位名稱以符合您的 CSV 檔案)
+            # 您的 CSV 檔案提供的欄位是：'消費日', '摘要', '入帳起息日'
+            required_cols = ['消費日', '摘要', '入帳起息日']  # <--- 修正處 1: 更改為 '入帳起息日'
             if not all(col in df.columns for col in required_cols):
                  return jsonify({'error': f'CSV 檔案缺少必要欄位：{required_cols}'}), 400
 
@@ -79,10 +80,11 @@ def analyze_data():
             df['消費日'] = pd.to_datetime(df['消費日'], errors='coerce')
             
             # 處理金額欄位，移除逗號和引號
-            df['金額'] = df['新臺幣金額'].apply(clean_currency)
+            # 使用您的 CSV 檔案中的 '入帳起息日' 欄位作為金額來源
+            df['金額'] = df['入帳起息日'].apply(clean_currency) # <--- 修正處 2: 更改為 '入帳起息日'
 
             # 過濾掉金額為負數的項目 (通常是退款或扣繳，如「國泰銀扣繳」 )
-            df = df[df['金額'] > 0] 
+            df = df[df['金額'] > 0]  
             
             # 4. 進行分類與分析
             df['分類'] = df['摘要'].apply(categorize_transaction)
